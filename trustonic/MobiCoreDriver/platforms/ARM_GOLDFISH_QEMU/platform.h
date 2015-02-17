@@ -1,0 +1,37 @@
+/*
+ * Copyright (c) 2015 TRUSTONIC LIMITED
+ * All Rights Reserved.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ */
+#ifndef _MC_DRV_PLATFORM_H_
+#define _MC_DRV_PLATFORM_H_
+
+#include <linux/mm.h>
+/* #include <mach/irqs.h> */
+
+/* MobiCore Interrupt. */
+#define MC_INTR_SSIQ 30
+
+/* Enable mobicore mem traces */
+#define MC_MEM_TRACES
+
+/* Enable Fastcall worker thread */
+#define MC_FASTCALL_WORKER_THREAD
+
+#define COUNT_OF_CPUS 1
+
+/* Values of MPIDR regs in  cpu0*/
+#define CPU_IDS {0x00};
+
+/* Enable use of vm_unamp instead of the deprecated do_munmap */
+#define MC_VM_UNMAP
+
+#endif /* _MC_DRV_PLATFORM_H_ */
