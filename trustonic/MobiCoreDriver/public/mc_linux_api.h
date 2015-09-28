@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2015 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -11,20 +11,20 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
+#ifndef _MC_LINUX_API_H_
+#define _MC_LINUX_API_H_
+
+#include <linux/types.h>
+
 /*
- * World shared memory definitions.
+ * Switch TEE active core to core_num, defined as linux
+ * core id
  */
-#ifndef _MC_KAPI_WSM_H_
-#define _MC_KAPI_WSM_H_
+int mc_switch_core(__u32 core_num);
 
-#include "common.h"
-#include <linux/list.h>
+/*
+ * Return TEE active core as Linux core id
+ */
+__u32 mc_active_core(void);
 
-struct wsm {
-	void			*virt_addr;
-	uint32_t		len;
-	uint32_t		handle;
-	struct list_head	list;
-};
-
-#endif /* _MC_KAPI_WSM_H_ */
+#endif /* _MC_LINUX_API_H_ */

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2015 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -11,14 +11,15 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
-#ifndef _MCUUID_H_
-#define _MCUUID_H_
 
-#define UUID_TYPE
+#ifndef __MC_SCHEDULER_H__
+#define __MC_SCHEDULER_H__
 
-/* Universally Unique Identifier (UUID) according to ISO/IEC 11578. */
-struct mc_uuid_t {
-	uint8_t		value[16];	/* Value of the UUID. */
-};
+int mc_scheduler_init(void);
+static inline void mc_scheduler_exit(void) {}
+int mc_scheduler_start(void);
+void mc_scheduler_stop(void);
+int mc_scheduler_suspend(void);
+int mc_scheduler_resume(void);
 
-#endif /* _MCUUID_H_ */
+#endif /* __MC_SCHEDULER_H__ */

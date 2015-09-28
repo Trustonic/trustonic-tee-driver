@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2015 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -11,142 +11,81 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
+
 #ifndef _MC_MAIN_H_
 #define _MC_MAIN_H_
 
-#include <asm/pgtable.h>
-#include <linux/semaphore.h>
-#include <linux/completion.h>
-#include <linux/mutex.h>
-
-#include "public/mc_linux.h"
-/* Platform specific settings */
-#include "platform.h"
+#include <linux/slab.h>		/* gfp_t */
+#include <linux/fs.h>		/* struct inode and struct file */
 
 #define MC_VERSION(major, minor) \
 		(((major & 0x0000ffff) << 16) | (minor & 0x0000ffff))
+#define MC_VERSION_MAJOR(x) ((x) >> 16)
+#define MC_VERSION_MINOR(x) ((x) & 0xffff)
 
-/* Instance data for MobiCore Daemon and TLCs. */
-struct mc_instance {
-	/* lock for the instance */
-	struct mutex lock;
-	/* unique handle */
-	unsigned int handle;
-	bool admin;
-};
+#define mc_dev_err(fmt, ...) \
+	dev_err(g_ctx.mcd, "%s: " fmt, __func__, ##__VA_ARGS__)
 
-/*
- * Contiguous buffer allocated to TLCs.
- * These buffers are uses as world shared memory (wsm) and shared with
- * secure world.
- * The virtual kernel address is added for a simpler search algorithm.
- */
-struct mc_buffer {
-	struct list_head	list;
-	/* unique handle */
-	unsigned int		handle;
-	/* Number of references kept to this buffer */
-	atomic_t		usage;
-	/* virtual Kernel start address */
-	void			*addr;
-	/* virtual Userspace start address */
-	void			*uaddr;
-	/* physical start address */
-	phys_addr_t		phys;
-	/* order of number of pages */
-	unsigned int		order;
-	uint32_t		len;
-	struct mc_instance	*instance;
-};
+#define mc_dev_info(fmt, ...) \
+	dev_info(g_ctx.mcd, "%s: " fmt, __func__, ##__VA_ARGS__)
+
+#ifdef DEBUG
+#define mc_dev_devel(fmt, ...) \
+	dev_info(g_ctx.mcd, "%s: " fmt, __func__, ##__VA_ARGS__)
+#else /* DEBUG */
+#define mc_dev_devel(...)		do {} while (0)
+#endif /* !DEBUG */
 
 /* MobiCore Driver Kernel Module context data. */
-struct mc_context {
-	/* MobiCore MCI information */
-	struct mc_buffer	mci_base;
-	/* MobiCore MCP buffer */
-	struct mc_mcp_buffer	*mcp;
-	/* event completion */
-	struct completion	isr_comp;
-	/* isr event counter */
-	unsigned int		evt_counter;
-	atomic_t		isr_counter;
-	/* ever incrementing counters */
-	atomic_t		buffer_counter;
-	atomic_t		instance_counter;
-	/* pointer to instance of daemon */
-	struct mc_instance	*daemon_inst;
-	/* pointer to instance of daemon */
-	struct task_struct	*daemon;
-	/* General list of contiguous buffers allocated by the kernel */
-	struct list_head	cont_bufs;
-	/* Lock for the list of contiguous buffers */
-	struct mutex		bufs_lock;
+struct mc_device_ctx {
+	struct device		*mcd;
+	/* debugfs root */
+	struct dentry		*debug_dir;
+
+	/* Features */
+	/* - SWd uses LPAE MMU table format */
+	bool			f_lpae;
+	/* - SWd can set a time out to get scheduled at a future time */
+	bool			f_timeout;
+	/* - SWd supports memory extension which allows for bigger TAs */
+	bool			f_mem_ext;
+	/* - SWd supports TA authorisation */
+	bool			f_ta_auth;
+	/* - SWd can map several buffers at once */
+	bool			f_multimap;
+	/* - SWd supports GP client authentication */
+	bool			f_client_login;
+	/* - SWd needs time updates */
+	bool			f_time;
+
+	/* Debug counters */
+	atomic_t		c_clients;
+	atomic_t		c_cbufs;
+	atomic_t		c_sessions;
+	atomic_t		c_wsms;
+	atomic_t		c_mmus;
 };
 
-struct mc_sleep_mode {
-	uint16_t	sleep_req;
-	uint16_t	ready_to_sleep;
+extern struct mc_device_ctx g_ctx;
+
+/* Debug stuff */
+struct kasnprintf_buf {
+	gfp_t gfp;
+	void *buf;
+	int size;
+	int off;
 };
 
-/* MobiCore is idle. No scheduling required. */
-#define SCHEDULE_IDLE		0
-/* MobiCore is non idle, scheduling is required. */
-#define SCHEDULE_NON_IDLE	1
+extern __printf(2, 3)
+int kasnprintf(struct kasnprintf_buf *buf, const char *fmt, ...);
+ssize_t debug_generic_read(struct file *file, char __user *user_buf,
+			   size_t count, loff_t *ppos,
+			   int (*function)(struct kasnprintf_buf *buf));
+int debug_generic_release(struct inode *inode, struct file *file);
 
-/* MobiCore status flags */
-struct mc_flags {
-	/*
-	 * Scheduling hint: if <> SCHEDULE_IDLE, MobiCore should
-	 * be scheduled by the NWd
-	 */
-	uint32_t		schedule;
-	/* State of sleep protocol */
-	struct mc_sleep_mode	sleep_mode;
-	/* Reserved for future use: Must not be interpreted */
-	uint32_t		rfu[2];
-};
-
-/* MCP buffer structure */
-struct mc_mcp_buffer {
-	/* MobiCore Flags */
-	struct mc_flags	flags;
-	uint32_t	rfu; /* MCP message buffer - ignore */
-};
-
-/* check if caller is MobiCore Daemon */
-static inline bool is_daemon(struct mc_instance *instance)
+static inline int kref_read(struct kref *kref)
 {
-	if (!instance)
-		return false;
-	return instance->admin;
+	return atomic_read(&kref->refcount);
 }
-
-
-/* Initialize a new mobicore API instance object */
-struct mc_instance *mc_alloc_instance(void);
-/* Release a mobicore instance object and all objects related to it */
-int mc_release_instance(struct mc_instance *instance);
-
-/*
- * mc_register_wsm_mmu() - Create a MMU table from a virtual memory buffer which
- * can be vmalloc or user space virtual memory
- */
-int mc_register_wsm_mmu(struct mc_instance *instance,
-	void *buffer, uint32_t len,
-	uint32_t *handle, phys_addr_t *phys);
-/* Unregister the buffer mapped above */
-int mc_unregister_wsm_mmu(struct mc_instance *instance, uint32_t handle);
-
-/* Allocate one mc_buffer of contiguous space */
-int mc_get_buffer(struct mc_instance *instance,
-	struct mc_buffer **buffer, unsigned long len);
-/* Free the buffer allocated above */
-int mc_free_buffer(struct mc_instance *instance, uint32_t handle);
-
-/* Check if the other end of the fd owns instance */
-bool mc_check_owner_fd(struct mc_instance *instance, int32_t fd);
-
-/* Test if sleep is possible */
-bool mc_sleep_ready(void);
 
 #endif /* _MC_MAIN_H_ */

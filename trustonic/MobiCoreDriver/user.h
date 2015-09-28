@@ -11,13 +11,15 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
-#ifndef _MC_LOGGING_H_
-#define _MC_LOGGING_H_
 
-void mc_logging_run(void);
-int  mc_logging_init(void);
-void mc_logging_exit(void);
-int mc_logging_start(void);
-void mc_logging_stop(void);
+#ifndef _MC_USER_H_
+#define _MC_USER_H_
 
-#endif /* _MC_LOGGING_H_ */
+struct cdev;
+
+int mc_user_init(struct cdev *cdev);
+static inline void mc_user_exit(void)
+{
+}
+
+#endif /* _MC_USER_H_ */

@@ -11,27 +11,17 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
-#ifndef _MC_DRV_PLATFORM_H_
-#define _MC_DRV_PLATFORM_H_
 
-#include <linux/mm.h>
-/* #include <mach/irqs.h> */
+#ifndef MCITIME_H_
+#define MCITIME_H_
 
-/* MobiCore Interrupt. */
-#define MC_INTR_SSIQ 30
+/*
+ * Trustonic TEE RICH OS Time:
+ * Seconds and nanoseconds since Jan 1, 1970, UTC
+ */
+struct mcp_time {
+	u64	seconds;
+	u64	nsec;
+};
 
-/* Enable mobicore mem traces */
-#define MC_MEM_TRACES
-
-/* Enable Fastcall worker thread */
-#define MC_FASTCALL_WORKER_THREAD
-
-#define COUNT_OF_CPUS 1
-
-/* Values of MPIDR regs in  cpu0*/
-#define CPU_IDS {0x00};
-
-/* Enable use of vm_unamp instead of the deprecated do_munmap */
-#define MC_VM_UNMAP
-
-#endif /* _MC_DRV_PLATFORM_H_ */
+#endif /* MCITIME_H_ */

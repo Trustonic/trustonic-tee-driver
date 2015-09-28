@@ -11,10 +11,16 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
-#ifndef _MC_DRV_VERSION_H_
-#define _MC_DRV_VERSION_H_
+#ifndef _MC_DRV_PLATFORM_H_
+#define _MC_DRV_PLATFORM_H_
 
-#define MCDRVMODULEAPI_VERSION_MAJOR 1
-#define MCDRVMODULEAPI_VERSION_MINOR 1
+/* MobiCore Interrupt. */
+#define MC_INTR_SSIQ	30
 
-#endif /* _MC_DRV_VERSION_H_ */
+/* Enable Fastcall worker thread */
+#define MC_FASTCALL_WORKER_THREAD
+
+/* uidgid.h does not exist in kernels before 3.5 */
+#define MC_NO_UIDGIT_H
+
+#endif /* _MC_DRV_PLATFORM_H_ */

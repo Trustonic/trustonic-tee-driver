@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2014 TRUSTONIC LIMITED
+ * Copyright (c) 2013-2015 TRUSTONIC LIMITED
  * All Rights Reserved.
  *
  * This program is free software; you can redistribute it and/or
@@ -11,122 +11,141 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
-/*
- * The <t-base Driver Kernel Module is a Linux device driver, which represents
- * the command proxy on the lowest layer to the secure world (Swd). Additional
- * services like memory allocation via mmap and generation of a MMU tables for
- * given virtual memory are also supported. IRQ functionality receives
- * information from the SWd in the non secure world (NWd).
- * As customary the driver is handled as Linux device driver with "open",
- * "close" and "ioctl" commands. Access to the driver is possible after the
- * devices "/dev/mobicore" and "/dev/mobicore-user" have been created.
- */
 
 #ifndef _MC_LINUX_H_
 #define _MC_LINUX_H_
 
-#include "version.h"
+#define MCDRVMODULEAPI_VERSION_MAJOR 2
+#define MCDRVMODULEAPI_VERSION_MINOR 0
 
-#ifndef __KERNEL__
-#include <stdint.h>
-#endif
+#include <linux/types.h>
 
-#define MC_ADMIN_DEVNODE	"mobicore"
 #define MC_USER_DEVNODE		"mobicore-user"
 
+/** Maximum length of MobiCore product ID string. */
+#define MC_PRODUCT_ID_LEN	64
+
+/** Number of buffers that can be mapped at once */
+#define MC_MAP_MAX		4
+
+/** Flags for buffers to map (aligned on GP) */
+#define MC_IO_MAP_INPUT		0x1
+#define MC_IO_MAP_OUTPUT	0x2
+
 /*
- * Data exchange structure of the MC_DRV_MODULE_INIT ioctl command.
- * INIT request data to SWD
+ * Universally Unique Identifier (UUID) according to ISO/IEC 11578.
  */
-struct mc_ioctl_init {
-	/* length of notification queue */
-	uint32_t  nq_length;
-	/* mcp buffer start/length [16:16] [start, length] */
-	uint32_t  mcp_offset;
-	/* length of mcp buffer */
-	uint32_t  mcp_length;
+struct mc_uuid_t {
+	__u8		value[16];	/* Value of the UUID. */
 };
 
 /*
- * Data exchange structure of the MC_DRV_MODULE_INFO ioctl command.
- * INFO request data to the SWD
+ * GP TA login types.
  */
-struct mc_ioctl_info {
-	uint32_t  ext_info_id;	/* extended info ID */
-	uint32_t  state;	/* state */
-	uint32_t  ext_info;	/* extended info */
+enum mc_login_type {
+	TEEC_LOGIN_PUBLIC = 0,
+	TEEC_LOGIN_USER,
+	TEEC_LOGIN_GROUP,
+	TEEC_LOGIN_APPLICATION = 4,
+	TEEC_LOGIN_USER_APPLICATION,
+	TEEC_LOGIN_GROUP_APPLICATION,
 };
 
 /*
- * Data exchange structure of the MC_IO_MAP_WSM and MC_IO_MAP_MCI commands.
- *
- * Allocate a contiguous memory buffer for a process.
- * The physical address can be used as for later calls to mmap.
- * The handle can be used to communicate about this buffer to the Daemon.
- * For MC_IO_MAP_MCI command, the reused field indicates that MCI was set up
- * already. I.e. Daemon was restarted.
+ * GP TA identity structure.
+ */
+struct mc_identity {
+	enum mc_login_type	login_type;
+	union {
+		__u8		login_data[16];
+		gid_t		gid;		/* Requested group id */
+		struct {
+			uid_t	euid;
+			uid_t	ruid;
+		} uid;
+	};
+};
+
+/*
+ * Data exchange structure of the MC_IO_OPEN_SESSION ioctl command.
+ */
+struct mc_ioctl_open_session {
+	struct mc_uuid_t uuid;		/* trustlet uuid */
+	__u32		is_gp_uuid;	/* uuid is for GP TA */
+	__u32		sid;            /* session id (out) */
+	__u64		tci;		/* tci buffer pointer */
+	__u32		tcilen;		/* tci length */
+	struct mc_identity identity;	/* GP TA identity */
+};
+
+/*
+ * Data exchange structure of the MC_IO_OPEN_TRUSTLET ioctl command.
+ */
+struct mc_ioctl_open_trustlet {
+	__u32		sid;		/* session id (out) */
+	__u32		spid;		/* trustlet spid */
+	__u64		buffer;		/* trustlet binary pointer */
+	__u32		tlen;		/* binary length  */
+	__u64		tci;		/* tci buffer pointer */
+	__u32		tcilen;		/* tci length */
+};
+
+/*
+ * Data exchange structure of the MC_IO_WAIT ioctl command.
+ */
+struct mc_ioctl_wait {
+	__u32		sid;		/* session id (in) */
+	__s32		timeout;	/* notification timeout */
+};
+
+/*
+ * Data exchange structure of the MC_IO_ALLOC ioctl command.
+ */
+struct mc_ioctl_alloc {
+	__u32		len;		/* buffer length  */
+	__u32		handle;		/* user handle for the buffer (out) */
+};
+
+/*
+ * Buffer mapping incoming and outgoing information.
+ */
+struct mc_ioctl_buffer {
+	__u64		va;		/* user space address of buffer */
+	__u32		len;		/* buffer length  */
+	__u64		sva;		/* SWd virt address of buffer (out) */
+	__u32		flags;		/* buffer flags  */
+};
+
+/*
+ * Data exchange structure of the MC_IO_MAP and MC_IO_UNMAP ioctl commands.
  */
 struct mc_ioctl_map {
-	uint32_t	len;	/* Buffer length */
-	uint32_t	handle;	/* WSM handle */
-	uint64_t	phys_addr; /* physical address of WSM (or 0) */
-	uint32_t	rfu;
-	bool		reused;	/* if WSM memory was reused, or new allocated */
+	__u32		sid;		/* session id */
+	struct mc_ioctl_buffer bufs[MC_MAP_MAX]; /* buffers info */
 };
 
 /*
- * Data exchange structure of the MC_IO_REG_WSM command.
- *
- * Allocates a physical MMU table and maps the buffer into this page.
- * Returns the physical address of the MMU table.
- * The page alignment will be created and the appropriated pSize and pOffsetMMU
- * will be modified to the used values.
- *
- * We assume the 64 bit compatible one to be the default and the
- * 32 bit one to be the compat one but we must serve both of them.
+ * Data exchange structure of the MC_IO_ERR ioctl command.
  */
-struct mc_compat_ioctl_reg_wsm {
-	uint32_t buffer;	/* base address of the virtual address  */
-	uint32_t len;		/* size of the virtual address space */
-	uint32_t pid;		/* process id */
-	uint32_t handle;	/* driver handle for locked memory */
-	uint64_t table_phys;	/* physical address of the MMU table */
-};
-
-struct mc_ioctl_reg_wsm {
-	uint64_t buffer;	/* base address of the virtual address  */
-	uint32_t len;		/* size of the virtual address space */
-	uint32_t pid;		/* process id */
-	uint32_t handle;	/* driver handle for locked memory */
-	uint64_t table_phys;/* physical address of the MMU table */
+struct mc_ioctl_geterr {
+	__u32		sid;		/* session id */
+	__s32		value;		/* error value (out) */
 };
 
 /*
- * Data exchange structure of the MC_IO_RESOLVE_CONT_WSM ioctl command.
+ * Global MobiCore Version Information.
  */
-struct mc_ioctl_resolv_cont_wsm {
-	/* driver handle for buffer */
-	uint32_t handle;
-	/* length memory */
-	uint32_t length;
-	/* base address of memory */
-	uint64_t phys;
-	/* fd to owner of the buffer */
-	int32_t fd;
+struct mc_version_info {
+	char product_id[MC_PRODUCT_ID_LEN]; /** Product ID string */
+	__u32 version_mci;		/** Mobicore Control Interface */
+	__u32 version_so;		/** Secure Objects */
+	__u32 version_mclf;		/** MobiCore Load Format */
+	__u32 version_container;	/** MobiCore Container Format */
+	__u32 version_mc_config;	/** MobiCore Config. Block Format */
+	__u32 version_tl_api;		/** MobiCore Trustlet API */
+	__u32 version_dr_api;		/** MobiCore Driver API */
+	__u32 version_nwd;		/** This Driver */
 };
-
-/*
- * Data exchange structure of the MC_IO_RESOLVE_WSM ioctl command.
- */
-struct mc_ioctl_resolv_wsm {
-	/* driver handle for buffer */
-	uint32_t handle;
-	/* fd to owner of the buffer */
-	int32_t fd;
-	/* base address of memory */
-	uint64_t phys;
-};
-
 
 /*
  * defines for the ioctl mobicore driver module function call from user space.
@@ -134,84 +153,20 @@ struct mc_ioctl_resolv_wsm {
 /* MobiCore IOCTL magic number */
 #define MC_IOC_MAGIC	'M'
 
-#define MC_IO_INIT		_IOWR(MC_IOC_MAGIC, 0, struct mc_ioctl_init)
-#define MC_IO_INFO		_IOWR(MC_IOC_MAGIC, 1, struct mc_ioctl_info)
-#define MC_IO_VERSION		_IOR(MC_IOC_MAGIC, 2, uint32_t)
 /*
- * ioctl parameter to send the YIELD command to the SWD.
- * Only possible in Privileged Mode.
- * ioctl(fd, MC_DRV_MODULE_YIELD)
+ * Implement corresponding functions from user api
  */
-#define MC_IO_YIELD		_IO(MC_IOC_MAGIC, 3)
-/*
- * ioctl parameter to send the NSIQ signal to the SWD.
- * Only possible in Privileged Mode
- * ioctl(fd, MC_DRV_MODULE_NSIQ)
- */
-#define MC_IO_NSIQ		_IO(MC_IOC_MAGIC, 4)
-/*
- * Free's memory which is formerly allocated by the driver's mmap
- * command. The parameter must be this mmaped address.
- * The internal instance data regarding to this address are deleted as
- * well as each according memory page and its appropriated reserved bit
- * is cleared (ClearPageReserved).
- * Usage: ioctl(fd, MC_DRV_MODULE_FREE, &address) with address being of
- * type long address
- */
-#define MC_IO_FREE		_IO(MC_IOC_MAGIC, 5)
-/*
- * Creates a MMU Table of the given base address and the size of the
- * data.
- * Parameter: mc_ioctl_reg_wsm
- *
- * Since the end ID is also based on the size of the structure it is
- * safe to use the same ID(6) for both
- */
-#define MC_IO_REG_WSM		_IOWR(MC_IOC_MAGIC, 6, struct mc_ioctl_reg_wsm)
-#define MC_COMPAT_REG_WSM	_IOWR(MC_IOC_MAGIC, 6, \
-			struct mc_compat_ioctl_reg_wsm)
-
-#define MC_IO_UNREG_WSM		_IO(MC_IOC_MAGIC, 7)
-#define MC_IO_LOCK_WSM		_IO(MC_IOC_MAGIC, 8)
-#define MC_IO_UNLOCK_WSM	_IO(MC_IOC_MAGIC, 9)
-
-/*
- * Allocate contiguous memory for a process for later mapping with mmap.
- * MC_IO_MAP_WSM	usual operation, pages are registered in
- *					device structure and freed later.
- * MC_IO_MAP_MCI	get Instance of MCI, allocates or mmaps
- *					the MCI to daemon
- */
-#define MC_IO_MAP_WSM		_IOWR(MC_IOC_MAGIC, 11, struct mc_ioctl_map)
-#define MC_IO_MAP_MCI		_IOWR(MC_IOC_MAGIC, 12, struct mc_ioctl_map)
-
-/*
- * Clean orphaned WSM buffers. Only available to the daemon and should
- * only be carried out if the TLC crashes or otherwise calls exit() in
- * an unexpected manner.
- * The clean is needed together with the lock/unlock mechanism so the daemon
- * has clear control of the mapped buffers so it can close a Trustlet before
- * release all the WSM buffers, otherwise the Trustlet would be able to write
- * to possibly kernel memory areas
- */
-#define MC_IO_CLEAN_WSM		_IO(MC_IOC_MAGIC, 14)
-
-/*
- * Get MMU phys address of a buffer handle allocated to the user.
- * Only available to the daemon.
- */
-#define MC_IO_RESOLVE_WSM	_IOWR(MC_IOC_MAGIC, 15, \
-					struct mc_ioctl_resolv_wsm)
-
-/*
- * Get the phys address & length of a allocated contiguous buffer.
- * Only available to the daemon */
-#define MC_IO_RESOLVE_CONT_WSM	_IOWR(MC_IOC_MAGIC, 16, \
-					struct mc_ioctl_resolv_cont_wsm)
-
-/*
- * Setup the mem traces when called.
- * Only available to the daemon */
-#define MC_IO_LOG_SETUP		_IO(MC_IOC_MAGIC, 17)
+#define MC_IO_OPEN_SESSION	\
+	_IOWR(MC_IOC_MAGIC, 0, struct mc_ioctl_open_session)
+#define MC_IO_OPEN_TRUSTLET	\
+	_IOWR(MC_IOC_MAGIC, 1, struct mc_ioctl_open_trustlet)
+#define MC_IO_CLOSE_SESSION	_IO(MC_IOC_MAGIC, 2)
+#define MC_IO_NOTIFY		_IO(MC_IOC_MAGIC, 3)
+#define MC_IO_WAIT		_IOW(MC_IOC_MAGIC, 4, struct mc_ioctl_wait)
+#define MC_IO_MAP		_IOWR(MC_IOC_MAGIC, 5, struct mc_ioctl_map)
+#define MC_IO_UNMAP		_IOW(MC_IOC_MAGIC, 6, struct mc_ioctl_map)
+#define MC_IO_ERR		_IOWR(MC_IOC_MAGIC, 7, struct mc_ioctl_geterr)
+#define MC_IO_FREEZE		_IO(MC_IOC_MAGIC, 8)
+#define MC_IO_VERSION		_IOR(MC_IOC_MAGIC, 9, struct mc_version_info)
 
 #endif /* _MC_LINUX_H_ */
