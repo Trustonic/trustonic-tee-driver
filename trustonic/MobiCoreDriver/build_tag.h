@@ -12,4 +12,4 @@
  * GNU General Public License for more details.
  */
 #define MOBICORE_COMPONENT_BUILD_TAG \
-	"t-base-GOLDFISH-Android-310A-20150827_165514_892"
+	"t-base-ARNDALE-Android-310A-20150827_165514_892"
